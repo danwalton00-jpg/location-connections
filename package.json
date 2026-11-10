@@ -1,0 +1,12 @@
+{
+  "name": "location-connections-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build-time vendoring of the Supabase browser SDK for Netlify",
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.0"
+  },
+  "scripts": {
+    "build": "node scripts/copy-supabase-sdk.cjs"
+  }
+}
