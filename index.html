@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Location &amp; Connections</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<style>
+:root{color-scheme:dark;--bg:#080d19;--panel:#111a2b;--line:#263650;--txt:#eef4ff;--muted:#9eacc2;--blue:#4b9cff;--green:#35c98a;--red:#ff7882}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 10% 0%,#17294a 0,transparent 45%),var(--bg);color:var(--txt);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.shell{max-width:1200px;margin:auto;padding:16px}.top,.row{display:flex;justify-content:space-between;align-items:center;gap:12px}.top{margin-bottom:16px}.brand{font-size:20px;font-weight:750}.sub,.muted,.note{color:var(--muted)}.pill,.status{border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:12px;color:var(--muted)}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#7d8797;margin-right:6px}.dot.ok{background:var(--green)}
+.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:16px}.card{background:linear-gradient(150deg,#142039,#0e1727);border:1px solid var(--line);border-radius:18px;padding:16px;min-width:0;box-shadow:0 12px 35px #0003}.card h2{font-size:17px;margin:0 0 12px}.map-wrap{overflow:hidden;border-radius:14px;border:1px solid var(--line)}#map{height:390px;width:100%;background:#19283b}
+input{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#0a1322;color:var(--txt);margin:7px 0 10px;font:inherit}button{border:0;border-radius:12px;padding:12px 14px;background:var(--blue);color:#061225;font:inherit;font-weight:700;cursor:pointer}button.secondary{background:#263751;color:var(--txt)}button.danger{background:#572632;color:#ffdce0}button:disabled{opacity:.5;cursor:not-allowed}
+.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.metric{background:#0b1423;border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0;margin-top:8px}.metric small{display:block;color:var(--muted);margin-bottom:5px}.metric strong{font-size:13px;overflow-wrap:anywhere}.note{font-size:12px;line-height:1.5}.section{margin-top:18px}.auth-row{display:flex;gap:8px;flex-wrap:wrap}.auth-row button{flex:1;min-width:110px}.linkgrid{display:flex;flex-wrap:wrap;gap:8px}.linkgrid a{background:#0b1525;border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:13px;color:#a9d0ff;text-decoration:none}.linkgrid a:hover{border-color:var(--blue)}#message{min-height:20px;color:var(--muted);font-size:13px;margin-top:10px;overflow-wrap:anywhere}.hidden{display:none!important}.success{color:#75e5b2}.danger-text{color:#ffb1b7}.foot{margin:18px 0;color:var(--muted);font-size:12px;line-height:1.5}
+@media(max-width:760px){.shell{padding:12px}.grid{grid-template-columns:1fr}#map{height:42vh;min-height:260px;max-height:440px}.controls button{padding:13px 9px;font-size:13px}.top{align-items:flex-start}}
+@media(max-width:360px){.meta,.controls{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="top">
+ <div><div class="brand">◉ Location &amp; Connections</div><div class="sub">Permission-based location dashboard</div></div>
+ <span class="pill"><i class="dot" id="authDot"></i><span id="authLabel">Signed out</span></span>
+</header>
+<div class="grid">
+<section class="card">
+ <div class="row"><h2>Precise location selector</h2><span class="status" id="trackingStatus">Tracking off</span></div>
+ <div class="map-wrap"><div id="map" aria-label="Location map"></div></div>
+ <label class="note" for="search">Search for an address or place</label>
+ <input id="search" type="search" placeholder="Type an address, then press Enter…" autocomplete="off">
+ <p class="note">Search runs only after you press Enter. Search uses Photon first and OpenStreetMap Nominatim as a fallback.</p>
+ <div class="controls">
+  <button type="button" id="useGps">Use precise location</button>
+  <button type="button" class="secondary" id="useIp">Approximate IP location</button>
+  <button type="button" class="secondary" id="track">Start live tracking</button>
+  <button type="button" class="secondary" id="saveLocal">Save on this device</button>
+  <button type="button" class="secondary" id="clearLocal">Clear device copy</button>
+  <button type="button" id="save">Sync to my account</button>
+ </div>
+ <div class="meta">
+  <div class="metric"><small>Location source</small><strong id="source">Not set</strong></div>
+  <div class="metric"><small>Reported accuracy</small><strong id="accuracy">Not available</strong></div>
+  <div class="metric"><small>Coordinates</small><strong id="coords">Not set</strong></div>
+  <div class="metric"><small>Address / status</small><strong id="address">Choose a location</strong></div>
+ </div>
+ <div id="message" role="status" aria-live="polite"></div>
+ <p class="note">Browser GPS uses device/browser permission and may combine device sensors, Wi-Fi and network signals. Accuracy is the browser-reported radius, not a guarantee. IP location is approximate and is never labelled GPS.</p>
+</section>
+<aside class="card">
+ <h2>Account &amp; secure sync</h2>
+ <p class="note">Sign in to save selected location records to your own Supabase account. No location is uploaded until you press Save and are authenticated.</p>
+ <div id="authForm">
+  <label class="note" for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+  <label class="note" for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Password">
+  <div class="auth-row"><button type="button" id="signIn">Sign in</button><button type="button" class="secondary" id="signUp">Create account</button></div>
+  <button id="signInApple" class="secondary" type="button" style="width:100%;margin-top:10px;background:#fff;color:#111"> Continue with Apple</button>
+  <p class="note">Your Apple password is entered only on Apple’s secure sign-in page. Apple sign-in works only after the Apple provider is configured in Supabase.</p>
+ </div>
+ <div id="signedIn" class="hidden">
+  <p id="userEmail" class="success"></p><button type="button" class="secondary" id="signOut">Sign out</button>
+  <button type="button" class="danger" id="deleteCloud" style="margin-top:8px;width:100%">Delete my saved cloud locations</button>
+ </div>
+ <div class="section">
+  <div class="row"><h2>Service health</h2><button type="button" id="checkHealth" class="secondary">Check</button></div>
+  <div class="metric"><small>Supabase</small><strong id="dbStatus">Not checked</strong></div>
+  <div class="metric"><small>Location service</small><strong id="geoStatus">Browser API not checked</strong></div>
+  <div class="metric"><small>Location permission</small><strong id="permissionStatus">Not checked</strong></div>
+  <div class="metric"><small>Third-party accounts</small><strong id="thirdPartyStatus">Not connected — authorization not configured</strong></div>
+ </div>
+</aside>
+<section class="card wide">
+ <h2>Connected services</h2>
+ <p class="note">These links open the official services. They do not mean your accounts are connected to this dashboard.</p>
+ <div class="linkgrid">
+  <a href="https://www.facebook.com/" target="_blank" rel="noopener">Facebook</a><a href="https://www.messenger.com/" target="_blank" rel="noopener">Messenger</a><a href="https://www.instagram.com/" target="_blank" rel="noopener">Instagram</a><a href="https://www.textnow.com/" target="_blank" rel="noopener">TextNow</a><a href="https://outlook.live.com/" target="_blank" rel="noopener">Outlook</a><a href="https://www.tiktok.com/" target="_blank" rel="noopener">TikTok</a>
+ </div>
+ <h2 class="section">Dating services</h2>
+ <div class="linkgrid"><a href="https://tinder.com/" target="_blank" rel="noopener">Tinder</a><a href="https://bumble.com/" target="_blank" rel="noopener">Bumble</a><a href="https://hinge.co/" target="_blank" rel="noopener">Hinge</a><a href="https://match.com/" target="_blank" rel="noopener">Match</a><a href="https://www.okcupid.com/" target="_blank" rel="noopener">OkCupid</a></div>
+ <h2 class="section">Browsers</h2>
+ <div class="linkgrid"><a href="https://www.apple.com/safari/" target="_blank" rel="noopener">Safari</a><a href="https://www.google.com/chrome/" target="_blank" rel="noopener">Chrome</a><a href="https://www.mozilla.org/firefox/" target="_blank" rel="noopener">Firefox</a><a href="https://www.microsoft.com/edge" target="_blank" rel="noopener">Edge</a></div>
+</section>
+</div>
+<p class="foot">Privacy: your location stays in page memory until you choose to save it. Device storage is optional. Cloud sync sends only the selected record after you sign in and press the sync button. Do not track another person without their informed consent.</p>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="/supabase.js"></script>
+<script src="/config.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const state = { location:null, map:null, marker:null, watchId:null, supabaseClient:null, session:null };
+const DEFAULT_CONFIG = {supabaseUrl:'',supabaseAnonKey:''};
+const config = Object.assign({},DEFAULT_CONFIG,window.APP_CONFIG||{});
+function message(text,kind=''){ $('message').textContent=text; $('message').className=kind; }
+function setText(id,value){const el=$(id);if(el)el.textContent=value;}
+function setLocation(lat,lon,source,accuracy=null,address='Selected location'){
+ const point={latitude:Number(lat),longitude:Number(lon),source,accuracy_m:accuracy,address,captured_at:new Date().toISOString()};
+ if(!Number.isFinite(point.latitude)||!Number.isFinite(point.longitude)||Math.abs(point.latitude)>90||Math.abs(point.longitude)>180)throw new Error('The location coordinates are invalid.');
+ state.location=point;
+ setText('source',source);setText('accuracy',accuracy==null?'Not available':`±${Math.round(accuracy)} m`);
+ setText('coords',`${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`);setText('address',address);
+ if(state.map){state.map.setView([point.latitude,point.longitude],15);if(state.marker)state.marker.setLatLng([point.latitude,point.longitude]);else if(window.L)state.marker=L.marker([point.latitude,point.longitude]).addTo(state.map);}
+ }
+ function initMap(){
+  if(!window.L){message('Map library could not load. Location and account controls remain available.');return;}
+  try{
+   state.map=L.map('map').setView([9.0579,7.4951],6);
+   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(state.map);
+   state.map.on('click',e=>{setLocation(e.latlng.lat,e.latlng.lng,'Map selection',null,'Map point selected');message('Map location selected.');});
+  }catch(e){console.error('Map initialization:',e);message('Map could not initialize. Other dashboard features remain available.');}
+ }
+ async function reverseGeocode(lat,lon){
+  const url=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+  try{const r=await fetch(url,{headers:{Accept:'application/json'}});if(!r.ok)throw Error(`HTTP ${r.status}`);const d=await r.json();return d.display_name||'Address unavailable';}
+  catch(e){return 'Address lookup unavailable';}
+ }
+ async function searchPhoton(q){
+  const url=`https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(q)}`;
+  const r=await fetch(url,{headers:{Accept:'application/json'}});if(!r.ok)throw Error(`Photon HTTP ${r.status}`);
+  const data=await r.json();const f=data.features&&data.features[0];if(!f)throw Error('No matching place found');
+  const c=f.geometry.coordinates,p=f.properties||{};
+  return {lat:c[1],lon:c[0],label:[p.name,p.street,p.housenumber,p.city||p.town||p.village,p.state,p.country].filter(Boolean).join(', ')||q};
+ }
+ async function searchNominatim(q){
+  const url=`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`;
+  const r=await fetch(url,{headers:{Accept:'application/json'}});if(!r.ok)throw Error(`Nominatim HTTP ${r.status}`);
+  const data=await r.json();if(!data.length)throw Error('No matching place found');
+  return {lat:Number(data[0].lat),lon:Number(data[0].lon),label:data[0].display_name||q};
+ }
+ async function searchAddress(){
+  const q=$('search').value.trim();if(!q){message('Enter an address or place first.');return;}
+  const btn=$('search');btn.disabled=true;message('Searching for location…');
+  try{
+   let result;
+   try{result=await searchPhoton(q);}
+   catch(photonError){console.warn('Photon search failed; trying Nominatim:',photonError);result=await searchNominatim(q);}
+   setLocation(result.lat,result.lon,'Address search',null,result.label);message('Location found and displayed on the map.','success');
+  }catch(err){console.error('Address search failed:',err);message(`Search failed: ${err.message||'Network request failed'}. Check your connection and try again.`,'danger-text');}
+  finally{btn.disabled=false;}
+ }
+ $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchAddress();}});
+ $('useGps').addEventListener('click',()=>{
+  if(!navigator.geolocation){message('This browser does not provide geolocation.','danger-text');return;}
+  message('Requesting device location permission…');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+   const {latitude,longitude,accuracy}=pos.coords;const addr=await reverseGeocode(latitude,longitude);
+   setLocation(latitude,longitude,'Device GPS',accuracy,addr);message('Device location received.','success');
+  },err=>{message(`GPS unavailable: ${err.message||'Permission denied'}. Check browser location permission and HTTPS.`,'danger-text');},{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+ });
+ $('useIp').addEventListener('click',async()=>{
+  message('Requesting approximate IP location…');
+  try{
+   const r=await fetch('/.netlify/functions/ip-location',{headers:{Accept:'application/json'}});
+   if(!r.ok)throw Error(`IP location function returned HTTP ${r.status}`);
+   const d=await r.json();const lat=Number(d.latitude??d.lat),lon=Number(d.longitude??d.lon??d.lng);
+   if(!Number.isFinite(lat)||!Number.isFinite(lon))throw Error('The IP location function returned no valid coordinates.');
+   const addr=d.city||d.region||d.country||'Approximate IP location';
+   setLocation(lat,lon,'Approximate IP',null,addr);message('Approximate IP location loaded. This is not GPS.','success');
+  }catch(e){console.error(e);message(`IP location unavailable: ${e.message}`,'danger-text');}
+ });
+ $('track').addEventListener('click',()=>{
+  if(state.watchId!==null){navigator.geolocation.clearWatch(state.watchId);state.watchId=null;$('track').textContent='Start live tracking';setText('trackingStatus','Tracking off');message('Live tracking stopped.');return;}
+  if(!navigator.geolocation){message('Geolocation is not available in this browser.','danger-text');return;}
+  state.watchId=navigator.geolocation.watchPosition(async pos=>{
+   const {latitude,longitude,accuracy}=pos.coords;setLocation(latitude,longitude,'Live device GPS',accuracy,'Current device location');setText('trackingStatus','Tracking on');
+  },err=>message(`Live tracking error: ${err.message}`,'danger-text'),{enableHighAccuracy:true,maximumAge:3000,timeout:20000});
+  $('track').textContent='Stop live tracking';setText('trackingStatus','Tracking on');message('Live tracking started after browser permission.');
+ });
+ document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.watchId!==null){navigator.geolocation.clearWatch(state.watchId);state.watchId=null;$('track').textContent='Start live tracking';setText('trackingStatus','Tracking paused');}});
+ $('saveLocal').addEventListener('click',()=>{
+  if(!state.location){message('Choose a location before saving.','danger-text');return;}
+  try{localStorage.setItem('location_connections_saved',JSON.stringify(state.location));message('Selected location saved on this device.','success');}
+  catch(e){message(`Device save failed: ${e.message}`,'danger-text');}
+ });
+ $('clearLocal').addEventListener('click',()=>{
+  try{localStorage.removeItem('location_connections_saved');message('Saved device copy cleared.','success');}
+  catch(e){message(`Could not clear device copy: ${e.message}`,'danger-text');}
+ });
+ try{const saved=JSON.parse(localStorage.getItem('location_connections_saved')||'null');if(saved&&saved.latitude!=null&&saved.longitude!=null)setLocation(saved.latitude,saved.longitude,saved.source||'Device saved copy',saved.accuracy_m,saved.address||'Restored device location');}catch(e){console.warn('Could not restore local location',e);}
+ function sdkReady(){return !!(window.supabase&&typeof window.supabase.createClient==='function');}
+ function updateAuthUI(){
+  const signed=!!state.session;
+  $('authForm').classList.toggle('hidden',signed);$('signedIn').classList.toggle('hidden',!signed);
+  setText('authLabel',signed?'Signed in':'Signed out');$('authDot').classList.toggle('ok',signed);
+  setText('userEmail',state.session?.user?.email||'Authenticated account');
+ }
+ async function initSupabase(){
+  if(!config.supabaseUrl||!config.supabaseAnonKey){setText('dbStatus','Not configured — check config.js');return;}
+  if(!sdkReady()){setText('dbStatus','Supabase SDK could not load');return;}
+  try{
+   state.supabaseClient=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey);
+   const {data,error}=await state.supabaseClient.auth.getSession();if(error)throw error;
+   state.session=data.session;updateAuthUI();
+   state.supabaseClient.auth.onAuthStateChange((_event,session)=>{state.session=session;updateAuthUI();});
+   setText('dbStatus','SDK loaded; authentication ready');
+  }catch(e){console.error('Supabase initialization:',e);setText('dbStatus',`Initialization error: ${e.message}`);}
+ }
+ async function authAction(kind){
+  if(!state.supabaseClient){message('Supabase is not ready. Check config.js and the Supabase SDK.','danger-text');return;}
+  const email=$('email').value.trim(),password=$('password').value;
+  if(!email||!password){message('Enter your email and password.','danger-text');return;}
+  message(kind==='signup'?'Creating account…':'Signing in…');
+  try{
+   const result=kind==='signup'
+    ?await state.supabaseClient.auth.signUp({email,password})
+    :await state.supabaseClient.auth.signInWithPassword({email,password});
+   if(result.error)throw result.error;
+   state.session=result.data.session;updateAuthUI();
+   message(kind==='signup'&&!result.data.session?'Account created. Check your email if confirmation is enabled.':'Signed in successfully.','success');
+  }catch(e){message(`${kind==='signup'?'Sign-up':'Sign-in'} failed: ${e.message}`,'danger-text');}
+ }
+ $('signIn').addEventListener('click',()=>authAction('signin'));
+ $('signUp').addEventListener('click',()=>authAction('signup'));
+ $('signInApple').addEventListener('click',async()=>{
+  if(!state.supabaseClient){message('Supabase is not ready.','danger-text');return;}
+  try{const {error}=await state.supabaseClient.auth.signInWithOAuth({provider:'apple',options:{redirectTo:location.origin}});if(error)throw error;}
+  catch(e){message(`Apple sign-in could not start: ${e.message}. Confirm Apple provider setup in Supabase Auth.`,'danger-text');}
+ });
+ $('signOut').addEventListener('click',async()=>{
+  if(!state.supabaseClient)return;
+  const {error}=await state.supabaseClient.auth.signOut();if(error){message(error.message,'danger-text');return;}
+  state.session=null;updateAuthUI();message('Signed out.','success');
+ });
+ $('save').addEventListener('click',async()=>{
+  if(!state.location){message('Choose a location before syncing.','danger-text');return;}
+  if(!state.supabaseClient||!state.session){message('Sign in before syncing a location.','danger-text');return;}
+  const p=state.location;
+  const row={user_id:state.session.user.id,label:p.address||'Saved location',latitude:p.latitude,longitude:p.longitude,accuracy_m:p.accuracy_m,address:p.address,source:p.source,captured_at:p.captured_at};
+  message('Saving selected location to your account…');
+  try{const {error}=await state.supabaseClient.from('location_records').insert(row);if(error)throw error;message('Selected location synced to your account.','success');}
+  catch(e){message(`Cloud sync failed: ${e.message}. Check that location_records exists and its RLS policies allow the signed-in user to insert their own rows.`,'danger-text');}
+ });
+ $('deleteCloud').addEventListener('click',async()=>{
+  if(!state.supabaseClient||!state.session){message('Sign in first.','danger-text');return;}
+  if(!confirm('Delete all location records belonging to your signed-in account? This cannot be undone.'))return;
+  try{const {error}=await state.supabaseClient.from('location_records').delete().eq('user_id',state.session.user.id);if(error)throw error;message('Your account location records were deleted.','success');}
+  catch(e){message(`Cloud deletion failed: ${e.message}`,'danger-text');}
+ });
+ $('checkHealth').addEventListener('click',async()=>{
+  setText('geoStatus',navigator.geolocation?'Browser geolocation API available':'Browser geolocation unavailable');
+  setText('permissionStatus','Permission not checked');
+  if(navigator.permissions?.query){
+   try{const p=await navigator.permissions.query({name:'geolocation'});setText('permissionStatus',p.state);}catch(e){setText('permissionStatus','Browser does not expose permission state');}
+  }else setText('permissionStatus','Check when requesting location');
+  if(!state.supabaseClient){setText('dbStatus',config.supabaseUrl?'SDK/client unavailable':'Not configured — check config.js');return;}
+  try{const {data,error}=await state.supabaseClient.auth.getSession();if(error)throw error;state.session=data.session;updateAuthUI();setText('dbStatus','Supabase connection and Auth session check passed');}
+  catch(e){setText('dbStatus',`Supabase check failed: ${e.message}`);}
+ });
+ setText('thirdPartyStatus','Not connected — authorization not configured');
+ initMap();
+ initSupabase();
+})();
+</script>
+</body>
+</html>
